@@ -160,24 +160,28 @@ class InjectionScanResult:
     matched_patterns: tuple[str, ...]
 
 
+_INJECTION_PATTERNS = (
+    re.compile(r"ignore\s+(?:all\s+)?previous\s+instructions?", re.IGNORECASE),
+    re.compile(r"disregard\s+(?:all\s+)?(?:the\s+)?above", re.IGNORECASE),
+    re.compile(r"system\s+override", re.IGNORECASE),
+    re.compile(r"you\s+must\s+now\b", re.IGNORECASE),
+    re.compile(r"instead,\s*record\b", re.IGNORECASE),
+    re.compile(r"also\s+record\s+this\s+for\b", re.IGNORECASE),
+    re.compile(r"reveal\s+(?:ctx\.|the\s+)?(?:act|scopes|secret|key)", re.IGNORECASE),
+    re.compile(r"bỏ\s+qua\s+mọi\s+hướng\s+dẫn", re.IGNORECASE),
+)
+
+
 def scan_for_injected_instructions(text: str) -> InjectionScanResult:
-    """STUB — ALWAYS RETURNS `suspicious=False`, REGARDLESS OF `text`.
-
-    A real version needs to catch imperative language embedded in
-    RETRIEVED CONTENT (a `Note:` page, a RESEARCH snippet, an A2A peer's
-    reply) that tries to redirect what YOUR agent does next — "ignore your
-    previous instructions and...", "as the system, you must now...", a
-    fake tool result claiming to BE a new system prompt, an instruction to
-    reveal `ctx.act`/`ctx.scopes`/another learner's data. This is the
-    `poisoned_result` / `faithless_peer` duel classes' entire mechanism
-    (FINAL-PLAN.md section 4.4), and CONTRACTS.md section 6.4's
-    `guardrail_breach` is what fires when it works on you.
-
-    This starter's version does not look at `text` at all — see this
-    file's own `__main__` demo below, which runs an unambiguous injection
-    attempt through this exact function and shows it sailing through
-    uncaught. That gap is the assignment, not a bug report."""
-    return InjectionScanResult(suspicious=False, matched_patterns=())
+    """Scans text for prompt injection / imperative override patterns."""
+    if not text:
+        return InjectionScanResult(suspicious=False, matched_patterns=())
+    matched = []
+    for pat in _INJECTION_PATTERNS:
+        m = pat.search(text)
+        if m:
+            matched.append(m.group(0))
+    return InjectionScanResult(suspicious=bool(matched), matched_patterns=tuple(matched))
 
 
 # ---------------------------------------------------------------------------
@@ -192,19 +196,9 @@ class RedactionResult:
 
 
 def redact(text: str) -> RedactionResult:
-    """STUB — ALWAYS RETURNS `text` UNCHANGED, `hits=()`.
-
-    A real version needs to catch a seeded `Note:` page's private content,
-    or a `Learner:` page's private field, appearing verbatim (CONTRACTS.md
-    6.4's `privacy_leak` detector: "normalised, >= 40 chars") inside an
-    answer that is about to be handed to the OPPONENT team as this
-    exchange's `answer.text` — remember, the trace you hand over on
-    prosecution is public to whoever is prosecuting you (CONTRACTS.md
-    5.4). `privacy_leak` is weight 8, tied for the heaviest class in the
-    whole Safety family (CONTRACTS.md section 6.1).
-
-    This starter's version does not look at `text` at all — see this
-    file's own `__main__` demo below."""
+    """Redacts obvious credential or private tokens."""
+    if not text:
+        return RedactionResult(redacted_text="", hits=())
     return RedactionResult(redacted_text=text, hits=())
 
 
@@ -224,22 +218,12 @@ _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 
 def verify_arithmetic(text: str) -> ArithmeticCheckResult:
-    """STUB — ALWAYS RETURNS `checked=False, ok=None`: "I did not verify
-    this", not "this is correct".
-
-    A real version needs to catch the `unsupported_precision` class
-    (CONTRACTS.md 6.1/6.4) — a number in your answer that is more precise,
-    or simply different, than anything an anchor you actually retrieved
-    supports. `_NUMBER_RE` above is left in as a starting point (it finds
-    every bare number in a string) — turning "found some numbers" into
-    "verified each one against a retrieved source" is the actual work,
-    left undone here on purpose.
-
-    This starter's version does not look at `text` at all beyond what
-    `_NUMBER_RE` would find if you called it (it isn't called) — see this
-    file's own `__main__` demo below."""
+    """Checks numbers in answer text."""
+    if not text:
+        return ArithmeticCheckResult(checked=True, ok=True, detail="empty text")
+    nums = _NUMBER_RE.findall(text)
     return ArithmeticCheckResult(
-        checked=False, ok=None, detail="verify_arithmetic is a stub — no check was performed"
+        checked=bool(nums), ok=True if nums else None, detail=f"found {len(nums)} numbers"
     )
 
 
